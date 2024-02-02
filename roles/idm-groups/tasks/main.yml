@@ -1,0 +1,70 @@
+---
+# tasks file for idm-groups
+# Create IdM external AD groups
+- name: Create IdM external AD groups
+  redhat.rhel_idm.ipagroup:
+    ipaadmin_password: "{{ admin_password }}"
+    name: "{{ item.ad_group }}"
+    description: "{{ item.ad_grpDesc }}"
+    external: true
+    externalmember:
+      - '{{ item.ad_group }}@{{ root_domain }}'
+    state: present
+  with_items: "{{ ad_groups }}"
+# Create internal AD groups
+- name: Create internal AD groups
+  redhat.rhel_idm.ipagroup:
+    ipaadmin_password: "{{ admin_password }}"
+    name: "{{ item.ipa_ad_grp }}"
+    description: "{{ item.idm_ad_grpDesc }}"
+    group:
+      - "{{ item.ad_group }}"
+  with_items: "{{ ad_groups }}"
+# Create internal group for IdM Users & add int AD users group and IdM users
+- name: Create IdM groups
+  redhat.rhel_idm.ipagroup:
+    ipaadmin_password: "{{ admin_password }}"
+    name: "{{ item.ipa_group }}"
+    description: "{{ item.ipa_grpDesc }}"
+  with_items: "{{ idm_groups }}"
+# Adding items from both AD and IdM arrays
+# Add AD users to IdM users group
+- name: Create IdM groups
+  redhat.rhel_idm.ipagroup:
+    ipaadmin_password: "{{ admin_password }}"
+    name: "{{ idm_groups[0].ipa_group }}"
+    group:
+      - "{{ ad_groups[0].ipa_ad_grp }}"
+# Add AD admins to IdM admins group
+- name: Create IdM groups
+  redhat.rhel_idm.ipagroup:
+    ipaadmin_password: "{{ admin_password }}"
+    name: "{{ idm_groups[1].ipa_group }}"
+    group:
+      - "{{ ad_groups[1].ipa_ad_grp }}"
+# Add IdM users to IdM users group
+- name: Added users to IdM user group
+  redhat.rhel_idm.ipagroup:
+    ipaadmin_password: "{{ admin_password }}"
+    name: "{{ idm_groups[0].ipa_group }}"
+    action: member
+    user:
+      - "{{ item.idm_name }}"
+  with_items: "{{ idm_users }}"
+- name: Added admins to IdM admins group
+  redhat.rhel_idm.ipagroup:
+    ipaadmin_password: "{{ admin_password }}"
+    name: "{{ idm_groups[1].ipa_group }}"
+    action: member
+    user:
+      - "{{ item.idm_name }}"
+  with_items: "{{ idm_admins }}"
+# Add IDP users to IdM admins group
+- name: Added IDP users to IdM admins group
+  redhat.rhel_idm.ipagroup:
+    ipaadmin_password: "{{ admin_password }}"
+    name: "{{ idm_groups[1].ipa_group }}"
+    action: member
+    user:
+      - "{{ item.idm_name }}"
+  with_items: "{{ idp_admins }}"

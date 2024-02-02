@@ -1,0 +1,113 @@
+all:
+  children:
+    win:
+      hosts:
+        winlocal.example.com:
+          ansible_connection: winrm
+          ansible_winrm_server_cert_validation: ignore
+          ansible_user: Administrator
+          ansible_password: "{{ admin_password }}"
+    ipaserver:      
+      hosts: 
+        idm.{{ shortname }}.example.com:
+    ipareplicas:
+      hosts: 
+        rep.{{ shortname }}.example.com:
+    ipaclients:
+      hosts: 
+        client.{{ shortname }}.example.com:
+  vars:
+# Global variables
+    root_domain: "example.com" # Root domain (also used as Windows domain)
+    shortname: "local" # Sub-domain
+    domain: "{{ shortname }}.{{ root_domain }}" # Full domain name
+    third: "254" # Third octect of subnet used.
+## DNS variables
+### IdM DNS
+    idm_pri: "idm.{{ domain }}"
+    idm_DNS1: "192.168.{{ third }}.92" # primary IdM IP address
+#### The below lines are not needed if you are only running a single IdM server.    
+    idm_rep: "rep.{{ domain }}"
+    idm_DNS2: "192.168.{{ third }}.93" # replica IdM IP address
+### Windows DNS
+    ad_ip: "192.168.{{ third }}.5" # AD IP
+# Windows variables
+## Domain
+    ad_netbios: "EXAMPLE"
+## AD Enterprise User/Group Creation
+    ad_groups:
+      - { ad_group: ad-idm-users, ipa_ad_grp: idm_ad_users, ad_grpDesc: "IdM external group for AD users", idm_ad_grpDesc: "IdM internal group for AD users" }
+      - { ad_group: ad-idm-admins, ipa_ad_grp: idm_ad_admins, ad_grpDesc: "IdM external group for AD admins", idm_ad_grpDesc: "IdM internal group for AD admins" }
+    ad_idm_admins: # AD enterprise admin name, needed for AD Trust creation
+      - { ad_name: miker_ad, ad_first: Mike, ad_last: Ralph }
+      - { ad_name: amyra_ad, ad_first: Amy, ad_last: Farley }
+    ad_idm_users: # test users
+      - { ad_name: aduser1, ad_first: AD, ad_last: User1 }
+      - { ad_name: aduser2, ad_first: AD, ad_last: User2 }
+      - { ad_name: aduser3, ad_first: AD, ad_last: User3 }
+    ad_admin: "Administrator" # AD administrator name
+    ad_admin_password: "{{ admin_password }}" # AD administrator password
+# IdM variables
+## IPA Server
+    ipaserver_domain: "{{ domain }}"
+    ipaserver_realm: "{{ domain | upper }}"
+    ipaserver_setup_dns: true
+    ipaserver_setup_adtrust: true
+    ipaserver_reverse_zones: "{{ third }}.168.192.in-addr.arpa"
+    ipaserver_allow_zone_overlap: true
+    ipaserver_no_forwarders: true
+    ipaserver_no_dnssec_validation: true
+    ipaserver_netbios_name: "{{ shortname | upper }}"
+    ipaserver_firewalld_zone: public
+## IPA Replica
+    ipareplica_no_forwarders: true
+    ipareplica_setup_adtrust: true
+    ipareplica_no_dnssec_validation: true
+    ipareplica_setup_ca: true
+    ipareplica_setup_dns: true
+    ipareplica_firewalld_zone: public
+## IPA Client
+    ipaclient_mkhomedir: true
+## IdM password variables, do not use same one for Prod/Dev. Same only for demo/POC
+    ipaadmin_password: "{{ admin_password }}" # IdM admin password
+    ipadm_password: "{{ admin_password }}" # IdM directory manager password
+    ipasmartcard_server_ca_certs: "/etc/ipa/ca.crt" # Used for enabling smartcards
+## IdM User Creation
+    idm_users: # IPA users
+      - { idm_name: dauston, idm_first: Duncan, idm_last: Auston, id: 10001, ipa_group: idm-users }
+      - { idm_name: anadine, idm_first: Angie, idm_last: Nadine, id: 10002, ipa_group: idm-users }
+      - { idm_name: sbronte, idm_first: Sammy, idm_last: Bronte, id: 10003, ipa_group: idm-users }
+    idm_admins: # IdM admins
+      - { idm_name: miker_idm, idm_first: Mike, idm_last: Ralph, ipa_group: idm-admins }
+      - { idm_name: amyra_idm, idm_first: Amy, idm_last: Farley, ipa_group: idm-admins }
+    idp_admins: # IDP admins
+      - { idm_name: miker_azure, idm_first: Mike, idm_last: Ralph, ipa_group: idm-admins, idp_ref: "Entra ID(Azure AD)", idp_name: "mralph@redhat.com", authtype: idp }
+      - { idm_name: amyra_azure, idm_first: Amy, idm_last: Farley, ipa_group: idm-admins, idp_ref: "Entra ID(Azure AD)", idp_name: "afarley@redhat.com", authtype: idp }
+## IdM Group creation
+    idm_groups:
+      - { ipa_group: "idm-users", ipa_grpDesc: "IdM users group" }
+      - { ipa_group: "idm-admins", ipa_grpDesc: "IdM administrators group" }
+    idm_host_group: "ipa_clients" # hostgroup name
+## IdM Defaults
+    idm_shell: "/bin/bash"
+## IdM IDP creation
+    idm_idp:
+      - { idp_name: "Entra ID(Azure AD)", idp_provider: "microsoft", idp_clientid: "{{ idpclientid }}", idp_secret: "{{ idpsecret }}", idp_org: "{{ idporg }}" }
+# RHEL variables
+    network_connections:
+    - name: "{{ ansible_default_ipv4.alias }}"
+      state: up
+      type: ethernet
+      persistent_state: present
+      ip:
+        dhcp4: false
+        dns: "{{ idm_DNS1 }}"
+        address: "{{ ansible_default_ipv4.address }}/24"
+        gateway4: "{{ ansible_default_ipv4.gateway }}"
+## Crypto policy used: non-FIPS = DEFAULT, FIPS = FIPS, FIPS on RHEL 8 w/AD Trust = FIPS:AD-SUPPORT, FIPS on RHEL 9 w/AD Trust = FIPS:LEGACY
+    crypto: "DEFAULT"
+## Local user creation if needed
+    local_user: 'miker' # UID for local user created during initial build of system, also used for SSO GUI login
+    ssh_key: '/home/miker/.ssh/id_rsa.pub' # Location of the ssh key to be used for the local user
+    addlocal_user:
+      - { luser_name: 'amyra', luser_full: 'Amy Farley', luser_pass: '$6$F5ySkn3whtI9s4Ac$yI52yuhYElAXZJ6qc8gqU6s4O0tyZXT15oPar2ysSe8kWHVU9DaEiG8PROjHAj9ln3wy/eiuOlEfRKGTc3/fr/' }

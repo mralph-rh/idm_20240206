@@ -1,0 +1,6 @@
+---
+# tasks file for hostsUpdate
+- name: Updates the hosts files
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_default_ipv4.address }}  {{ ansible_nodename }}"

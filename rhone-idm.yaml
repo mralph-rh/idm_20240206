@@ -1,0 +1,108 @@
+---
+# Windows section
+- name: Configure Windows pt 1
+  hosts: win
+  gather_facts: true
+  become_method: runas
+  become_user: Administrator
+  become: false
+  roles:
+    - role: winPromote # Converts Windows server into domain controller and adds users and groups
+      state: present
+  tags: win1
+- name: Configure Windows pt 2
+  hosts: win
+  become_method: runas
+  become_user: Administrator
+  become: false
+  roles:
+    - role: win_delegate # Delegates sub-domain to IdM
+      state: present
+  tags: win2
+# OS section
+- name: Add local linux users
+  hosts: all:!win
+  gather_facts: true
+  roles:
+    - role: local_users # Adds additional users to local RHEL systems
+  tags: locUsers
+- name: Configure hosts file
+  hosts: all:!win
+  roles:
+    - role: update_hosts # Adds local hostname to /etc/hosts file
+  tags: confHosts
+- name: Update nameserver entry on ipareplcas and ipaclients
+  hosts: ipareplicas:ipaclients
+  roles:
+    - role: rhel-system-roles.network # Changes IdM clients DNS to point to IdM server for resolution
+  tags: network
+- name: Installs the IdM server
+  hosts: ipaserver
+  roles:
+    - role: redhat.rhel_idm.ipaserver
+  tags: server
+- name: Turn IdM DNS PTR Sync on
+  hosts: ipaserver
+  roles:
+    - role: idm-dns_ptr
+  tags: server
+- name: Installs the IdM replicas
+  hosts: ipareplicas
+  roles:
+    - role: redhat.rhel_idm.ipareplica
+  tags: replicas
+- name: Installs the IdM clients
+  hosts: ipaclients,ipareplicas
+  roles:
+    - role: redhat.rhel_idm.ipaclient
+  tags: clients
+# IdM configuration
+- name: Sets up the AD trust.
+  hosts: ipaserver
+  roles:
+    - role: idm-dns_ad_setup
+  tags: adtrust
+- name: Setup IDP
+  hosts: ipaserver
+  roles:
+    - role: idm-idp
+  tags:
+    - idp
+- name: Create IdM users
+  hosts: ipaserver
+  roles:
+    - role: idm-users
+  tags: idmUsers
+- name: Create external group for AD Users/Groups
+  hosts: ipaserver
+  roles:
+    - role: idm-groups
+  tags: idmGrps
+- name: Set default shell
+  hosts: ipaserver
+  roles:
+    - role: idm-defaults
+  tags: defaults
+- name: Create client host group
+  hosts: ipaserver
+  become: false
+  roles:
+    - role: idm-hostgroup
+  tags: hostGrp
+- name: Create HBAC Rules
+  hosts: ipaserver
+  become: false
+  roles:
+    - role: idm-hbac
+  tags: hbac
+- name: Enable sudo on clients
+  hosts: ipaclients
+  roles:
+    - role: sudo-sssd
+  tags: sudo
+- name: Create IdM SUDO rules
+  hosts: ipaserver
+  become: false
+  roles:
+    - role: idm-sudo
+  tags: sudo
